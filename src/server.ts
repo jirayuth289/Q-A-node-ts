@@ -12,42 +12,64 @@ app.get('/', (req: Request, res: Response) => {
     res.send('Q&A REST API');
 });
 
-app.get('/question', (req: Request, res: Response, next: NextFunction) => {
-    const filePath = path.join(__dirname, 'data', 'question.json');
-    fs.access(filePath, (errAccess: NodeJS.ErrnoException | null) => {
-        if (errAccess) {
-            next(new HttpException(500, errAccess.code ?? 'nocode', errAccess.message));
-        } else {
-            fs.readFile(filePath, (errReadFile: NodeJS.ErrnoException | null, data: Buffer) => {
-                if (errReadFile) {
-
-                    next(new HttpException(500, errReadFile.code ?? '', errReadFile.message));
+app.get('/question', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const filePath = path.join(__dirname, 'data', 'question.json');
+        await new Promise((resolve, reject) => {
+            fs.access(filePath, (errAccess: NodeJS.ErrnoException | null) => {
+                if (errAccess) {
+                    reject(errAccess);
                 } else {
-                    res.json({ object: 'question', rows: JSON.parse(data.toString('utf-8')) });
+                    resolve(true);
                 }
             });
+        });
+
+        const fileReadResult = await new Promise((resolve, reject) => {
+            fs.readFile(filePath, (errReadFile: NodeJS.ErrnoException | null, data: Buffer) => {
+                if (errReadFile) {
+                    reject(errReadFile);
+                } else {
+                    resolve(JSON.parse(data.toString('utf-8')));
+                }
+            });
+        });
+
+        res.json({ object: 'question', rows: fileReadResult });
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            next(new HttpException(500, '', error.message));
         }
-    });
+    }
 });
 
-app.get('/question/:id/answer', (req: Request, res: Response, next: NextFunction) => {
-    const questionId = req.params.id ?? undefined;
-    if (questionId) {
-        const filePath = path.join(__dirname, 'data', 'answer.json');
-        fs.readFile(filePath, (errReadFile: NodeJS.ErrnoException | null, data: Buffer) => {
-            if (errReadFile) {
+app.get('/question/:id/answer', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const questionId = req.params.id ?? undefined;
+        if (questionId) {
+            const filePath = path.join(__dirname, 'data', 'answer.json');
 
-                next(new HttpException(500, errReadFile.code ?? 'nocode', errReadFile.message));
-            } else {
-                const answerList: Answer[] = JSON.parse(data.toString('utf-8'));
+            const fileReadResult = await new Promise((resolve, reject) => {
+                fs.readFile(filePath, (errReadFile: NodeJS.ErrnoException | null, data: Buffer) => {
+                    if (errReadFile) {
+                        reject(errReadFile);
+                    } else {
+                        resolve(JSON.parse(data.toString('utf-8')));
+                    }
+                });
+            }) as Answer[];
 
-                const answer = answerList.find((item: Answer) => item.questionId === parseInt(questionId));
 
-                res.json({ object: 'answer', row: answer });
-            }
-        });
-    } else {
-        res.status(400).json({ object: 'error', message: 'could not found the requested questionId' });
+            const answer = fileReadResult.find((item: Answer) => item.questionId === parseInt(questionId));
+
+            res.json({ object: 'answer', row: answer });
+        } else {
+            res.status(400).json({ object: 'error', message: 'could not found the requested questionId' });
+        }
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            next(new HttpException(500, '', error.message));
+        }
     }
 });
 
