@@ -1,5 +1,5 @@
 import express, { NextFunction, Request, Response } from 'express';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import http, { IncomingMessage } from 'http';
 import config from './config';
@@ -15,30 +15,16 @@ app.get('/', (req: Request, res: Response) => {
 app.get('/question', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const filePath = path.join(__dirname, 'data', 'question.json');
-        await new Promise((resolve, reject) => {
-            fs.access(filePath, (errAccess: NodeJS.ErrnoException | null) => {
-                if (errAccess) {
-                    reject(errAccess);
-                } else {
-                    resolve(true);
-                }
-            });
-        });
+        await  fs.access(filePath);
 
-        const fileReadResult = await new Promise((resolve, reject) => {
-            fs.readFile(filePath, (errReadFile: NodeJS.ErrnoException | null, data: Buffer) => {
-                if (errReadFile) {
-                    reject(errReadFile);
-                } else {
-                    resolve(JSON.parse(data.toString('utf-8')));
-                }
-            });
-        });
+        const fileContent = await fs.readFile(filePath, { encoding: 'utf-8' });
 
-        res.json({ object: 'question', rows: fileReadResult });
+        res.json({ object: 'question', rows: JSON.parse(fileContent) });
     } catch (error: unknown) {
         if (error instanceof Error) {
             next(new HttpException(500, '', error.message));
+        } else {
+            next(error);
         }
     }
 });
@@ -49,18 +35,11 @@ app.get('/question/:id/answer', async (req: Request, res: Response, next: NextFu
         if (questionId) {
             const filePath = path.join(__dirname, 'data', 'answer.json');
 
-            const fileReadResult = await new Promise((resolve, reject) => {
-                fs.readFile(filePath, (errReadFile: NodeJS.ErrnoException | null, data: Buffer) => {
-                    if (errReadFile) {
-                        reject(errReadFile);
-                    } else {
-                        resolve(JSON.parse(data.toString('utf-8')));
-                    }
-                });
-            }) as Answer[];
+            const fileContent = await fs.readFile(filePath, { encoding: 'utf-8' });
 
+            const awnserList = JSON.parse(fileContent) as Answer[];
 
-            const answer = fileReadResult.find((item: Answer) => item.questionId === parseInt(questionId));
+            const answer = awnserList.find((item: Answer) => item.questionId === parseInt(questionId));
 
             res.json({ object: 'answer', row: answer });
         } else {
@@ -69,6 +48,8 @@ app.get('/question/:id/answer', async (req: Request, res: Response, next: NextFu
     } catch (error: unknown) {
         if (error instanceof Error) {
             next(new HttpException(500, '', error.message));
+        } else {
+            next(error);
         }
     }
 });
